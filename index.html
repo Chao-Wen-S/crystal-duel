@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>水晶战争 · CRYSTAL DUEL</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b12'/%3E%3Cpath d='M16 5l8 11-8 11-8-11z' fill='%2322d3ee'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#05070d; --ink:#e8eef7; --muted:#8b98ab; --dim:#5b6678;
+    --p1:#22d3ee; --p2:#fb7185; --gold:#fbbf24; --violet:#a78bfa;
+    --line:rgba(255,255,255,.07);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--ink); background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(124,58,237,.22), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(8,145,178,.18), transparent 60%),
+      var(--bg);
+    font-family:ui-sans-serif,system-ui,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex; justify-content:center; padding:14px;
+  }
+  #app{width:min(100%,980px); display:flex; flex-direction:column; gap:10px}
+
+  header{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .brand{display:flex; align-items:baseline; gap:9px; font-weight:700; letter-spacing:.04em}
+  .brand b{font-size:18px}
+  .brand em{font-style:normal; font-family:ui-monospace,Menlo,monospace; font-size:9px;
+            letter-spacing:.22em; color:var(--dim); text-transform:uppercase}
+  .meta{display:flex; align-items:center; gap:10px; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--muted)}
+  .pill{border:1px solid var(--line); border-radius:999px; padding:4px 10px}
+
+  .bar{display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:12px;
+       border:1px solid var(--line); background:rgba(255,255,255,.02)}
+  .bar .who{font-family:ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:.1em; width:62px}
+  .bar.p2 .who{color:var(--p2)} .bar.p1 .who{color:var(--p1)}
+  .hpwrap{flex:1; height:9px; border-radius:999px; background:#141a26; overflow:hidden; position:relative}
+  .hpfill{height:100%; width:100%; transition:width .25s; border-radius:999px}
+  .bar.p1 .hpfill{background:linear-gradient(90deg,#0891b2,#22d3ee)}
+  .bar.p2 .hpfill{background:linear-gradient(90deg,#f43f5e,#fb7185)}
+  .hptext{font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--muted); width:64px; text-align:right}
+  .coins{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--gold); width:70px; text-align:right}
+
+  .stage{position:relative; border-radius:16px; overflow:hidden; border:1px solid var(--line);
+         box-shadow:0 26px 70px -30px #000, 0 0 0 1px rgba(255,255,255,.02) inset}
+  canvas{display:block; width:100%; height:auto}
+  .banner{position:absolute; top:14px; left:50%; transform:translate(-50%,-6px); opacity:0;
+          transition:.25s; pointer-events:none; font-family:ui-monospace,Menlo,monospace;
+          font-size:12px; letter-spacing:.08em; color:#e8eef7;
+          background:rgba(10,14,22,.82); border:1px solid rgba(255,255,255,.12);
+          border-radius:999px; padding:6px 14px; white-space:nowrap}
+  .banner.show{opacity:1; transform:translate(-50%,0)}
+
+  .shop{border:1px solid var(--line); border-radius:14px; padding:10px; background:rgba(255,255,255,.02)}
+  .shophead{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+  .lanes{display:flex; gap:6px}
+  .lanebtn{font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--muted);
+           border:1px solid var(--line); background:transparent; border-radius:8px; padding:5px 10px; cursor:pointer}
+  .lanebtn.on{color:#0b0e14; background:var(--ink); border-color:var(--ink)}
+  .spacer{flex:1}
+  .ghostbtn{font-family:ui-monospace,Menlo,monospace; font-size:12px; color:var(--ink);
+            border:1px solid rgba(255,255,255,.16); background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
+            border-radius:10px; padding:7px 14px; cursor:pointer}
+  .ghostbtn:disabled{opacity:.4; cursor:not-allowed}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:6px; max-height:224px; overflow:auto; padding-right:2px}
+  .card{position:relative; text-align:left; border:1px solid var(--line); border-radius:10px;
+        background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.01));
+        color:var(--ink); padding:7px 8px 6px; cursor:pointer; transition:.12s; font-family:inherit}
+  .card:hover{border-color:rgba(255,255,255,.22); transform:translateY(-1px)}
+  .card:disabled{opacity:.32; cursor:not-allowed; transform:none}
+  .card .ic{font-size:18px; line-height:1}
+  .card .nm{font-size:12px; font-weight:600; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .card .st{font-family:ui-monospace,Menlo,monospace; font-size:9px; color:var(--muted); margin-top:2px; display:flex; gap:6px}
+  .card .cost{position:absolute; top:6px; right:7px; font-family:ui-monospace,Menlo,monospace;
+              font-size:11px; font-weight:700; color:var(--gold)}
+  .card .tags{font-size:9px; color:var(--dim); margin-top:2px}
+
+  .overlay{position:fixed; inset:0; background:rgba(4,6,10,.86); backdrop-filter:blur(10px);
+           display:none; align-items:center; justify-content:center; z-index:20; padding:24px}
+  .overlay.show{display:flex}
+  .panel{max-width:560px; text-align:center; display:flex; flex-direction:column; gap:14px; align-items:center}
+  .panel h1{margin:0; font-size:40px; letter-spacing:.12em;
+            background:linear-gradient(100deg,#a5f3fc,#c4b5fd 45%,#fda4af);
+            -webkit-background-clip:text; background-clip:text; color:transparent}
+  .panel p{margin:0; color:var(--muted); font-size:13px; line-height:1.9}
+  .panel .row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+  .bigbtn{font-family:ui-monospace,Menlo,monospace; font-size:13px; color:#0b0e14; background:var(--ink);
+          border:0; border-radius:10px; padding:11px 22px; cursor:pointer; font-weight:700}
+  .bigbtn.alt{background:transparent; color:var(--ink); border:1px solid rgba(255,255,255,.18)}
+  footer{font-family:ui-monospace,Menlo,monospace; font-size:10px; color:#414b5c; text-align:center; letter-spacing:.06em}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><b>水晶战争</b><em>crystal duel</em></div>
+    <div class="meta">
+      <span class="pill" id="roundPill">第 1 回合</span>
+      <button class="ghostbtn" id="speedBtn" style="padding:4px 10px">1×</button>
+      <button class="ghostbtn" id="helpBtn" style="padding:4px 10px">克制表</button>
+    </div>
+  </header>
+
+  <div class="bar p2">
+    <div class="who">P2</div>
+    <div class="hpwrap"><div class="hpfill" id="p2hp"></div></div>
+    <div class="hptext" id="p2hpText">240</div>
+    <div class="coins" id="p2gold">0 金</div>
+  </div>
+
+  <div class="stage"><canvas id="field"></canvas><div class="banner" id="banner"></div></div>
+
+  <div class="bar p1">
+    <div class="who">P1</div>
+    <div class="hpwrap"><div class="hpfill" id="p1hp"></div></div>
+    <div class="hptext" id="p1hpText">240</div>
+    <div class="coins" id="p1gold">0 金</div>
+  </div>
+
+  <div class="shop" id="shop">
+    <div class="shophead">
+      <div class="lanes" id="lanes">
+        <button class="lanebtn" data-lane="0">上路</button>
+        <button class="lanebtn on" data-lane="1">中路</button>
+        <button class="lanebtn" data-lane="2">下路</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="meta" id="buyInfo" style="font-size:11px"></div>
+      <button class="ghostbtn" id="endBtn">结束回合 ⏎</button>
+    </div>
+    <div class="cards" id="cards"></div>
+  </div>
+
+  <footer>选兵 → 选路 → 结束回合　·　先打碎对方水晶者胜</footer>
+</div>
+
+<div class="overlay" id="overlay"><div class="panel" id="panel"></div></div>
+
+<script>
+(() => {
+"use strict";
+
+/* ══════════════ 1. 数据 ══════════════ */
+const WORLD_W = 1000, WORLD_H = 360, LANES = 3, LANE_H = WORLD_H / LANES;
+const CRYSTAL_X = [72, WORLD_W - 72];
+const SPAWN_X = [150, WORLD_W - 150];
+
+// 轻甲 / 重甲 / 灵体 / 飞行 ；攻击类型 物理 / 穿刺 / 破甲 / 法术 / 攻城
+const MATRIX = {
+  "物理": { "轻甲":1.00, "重甲":0.55, "灵体":0.45, "飞行":1.00 },
+  "穿刺": { "轻甲":1.20, "重甲":0.80, "灵体":0.60, "飞行":1.60 },
+  "破甲": { "轻甲":0.90, "重甲":1.80, "灵体":0.70, "飞行":0.90 },
+  "法术": { "轻甲":1.00, "重甲":1.15, "灵体":1.60, "飞行":1.00 },
+  "攻城": { "轻甲":0.50, "重甲":0.50, "灵体":0.50, "飞行":0.00 },
+};
+
+const UNITS = [
+  { id:"militia",  n:"民兵",   e:"🗡️", c:2, hp:75,  dmg:9,  r:26,  spd:52, cd:0.9,  a:"轻甲", t:"物理" },
+  { id:"spear",    n:"长矛兵", e:"🔱", c:3, hp:90,  dmg:12, r:42,  spd:48, cd:1.0,  a:"轻甲", t:"穿刺" },
+  { id:"shield",   n:"盾卫",   e:"🛡️", c:3, hp:165, dmg:7,  r:26,  spd:36, cd:1.2,  a:"重甲", t:"物理" },
+  { id:"archer",   n:"弓手",   e:"🏹", c:3, hp:55,  dmg:10, r:155, spd:44, cd:1.1,  a:"轻甲", t:"穿刺" },
+  { id:"assassin", n:"刺客",   e:"🗡", c:4, hp:60,  dmg:21, r:26,  spd:86, cd:0.8,  a:"轻甲", t:"穿刺" },
+  { id:"breaker",  n:"破甲兵", e:"🪓", c:4, hp:120, dmg:16, r:28,  spd:50, cd:1.0,  a:"重甲", t:"破甲" },
+  { id:"knight",   n:"骑士",   e:"🐴", c:5, hp:190, dmg:14, r:28,  spd:44, cd:1.0,  a:"重甲", t:"物理" },
+  { id:"mage",     n:"法师",   e:"🔮", c:5, hp:58,  dmg:17, r:135, spd:38, cd:1.4,  a:"轻甲", t:"法术", splash:44 },
+  { id:"priest",   n:"牧师",   e:"✨", c:4, hp:80,  dmg:4,  r:90,  spd:40, cd:1.3,  a:"轻甲", t:"法术", heal:9, healR:90 },
+  { id:"catapult", n:"投石车", e:"🪨", c:6, hp:100, dmg:30, r:195, spd:28, cd:2.3,  a:"重甲", t:"物理", splash:56 },
+  { id:"ballista", n:"弩车",   e:"🎯", c:6, hp:88,  dmg:28, r:215, spd:30, cd:1.7,  a:"重甲", t:"穿刺" },
+  { id:"wraith",   n:"幽灵",   e:"👻", c:5, hp:85,  dmg:16, r:26,  spd:60, cd:0.9,  a:"灵体", t:"法术" },
+  { id:"frost",    n:"冰法师", e:"❄️", c:5, hp:58,  dmg:10, r:130, spd:38, cd:1.2,  a:"轻甲", t:"法术", slow:1.8 },
+  { id:"berserk",  n:"狂战士", e:"🪓", c:4, hp:130, dmg:16, r:26,  spd:62, cd:0.85, a:"轻甲", t:"物理", rage:true },
+  { id:"gargoyle", n:"石像鬼", e:"🦇", c:5, hp:110, dmg:13, r:26,  spd:78, cd:1.0,  a:"飞行", t:"物理" },
+  { id:"drake",    n:"飞龙",   e:"🐉", c:8, hp:170, dmg:23, r:44,  spd:54, cd:1.1,  a:"飞行", t:"法术", splash:38 },
+  { id:"ram",      n:"攻城锤", e:"🛞", c:6, hp:230, dmg:9,  r:26,  spd:28, cd:1.5,  a:"重甲", t:"攻城", crystal:2.2 },
+  { id:"fire",     n:"火元素", e:"🔥", c:7, hp:140, dmg:21, r:115, spd:44, cd:1.3,  a:"灵体", t:"法术", splash:48 },
+  { id:"troll",    n:"巨魔",   e:"🧌", c:8, hp:340, dmg:27, r:30,  spd:34, cd:1.3,  a:"重甲", t:"物理", regen:7 },
+  { id:"dragonk",  n:"龙骑士", e:"🐲", c:9, hp:210, dmg:29, r:34,  spd:50, cd:1.0,  a:"飞行", t:"物理" },
+];
+const UNIT_MAP = Object.fromEntries(UNITS.map(u => [u.id, u]));
+
+const INCOME = [12, 10, 15, 9, 17, 12, 20, 14, 22, 16, 25, 18, 28, 20, 30];
+const CRYSTAL_HP = 240;
+
+/* ══════════════ 2. 状态 ══════════════ */
+const S = {
+  mode: "ai",              // ai | pvp
+  phase: "menu",           // menu | buy | handoff | battle | roundend | over
+  round: 1,
+  gold: [0, 0],
+  crystal: [CRYSTAL_HP, CRYSTAL_HP],
+  buyer: 0,
+  lane: 1,
+  queue: [[], []],
+  units: [],
+  uid: 1,
+  t: 0,
+  speed: 1,
+  crystalCd: [0, 0],
+  aiMemory: { "轻甲":0, "重甲":0, "灵体":0, "飞行":0 },
+  result: null,
+};
+
+/* ══════════════ 3. 工具 ══════════════ */
+const $ = (id) => document.getElementById(id);
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const rnd = (a=1) => Math.random()*a;
+
+let AC = null;
+function audio(){
+  if (!AC) { try { AC = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} }
+  if (AC && AC.state === "suspended") AC.resume();
+  return AC;
+}
+function beep(freq, dur=.08, type="triangle", gain=.05, slide=0){
+  const ac = audio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = freq;
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40,freq+slide), ac.currentTime+dur);
+  g.gain.setValueAtTime(gain, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime+dur);
+  o.connect(g).connect(ac.destination);
+  o.start(); o.stop(ac.currentTime+dur+.02);
+}
+
+/* ══════════════ 4. 界面构建 ══════════════ */
+const cvs = $("field");
+const ctx = cvs.getContext("2d");
+const cardsEl = $("cards");
+const overlay = $("overlay");
+const panel = $("panel");
+
+let cardEls = {};
+
+function buildCards(){
+  cardsEl.innerHTML = "";
+  cardEls = {};
+  for (const u of UNITS){
+    const b = document.createElement("button");
+    b.className = "card";
+    b.dataset.id = u.id;
+    b.innerHTML = `
+      <div class="ic">${u.e}</div>
+      <div class="nm">${u.n}</div>
+      <div class="st"><span>❤${u.hp}</span><span>⚔${u.dmg}</span></div>
+      <div class="tags">${u.a} · ${u.t}</div>
+      <div class="cost">${u.c}</div>`;
+    b.addEventListener("click", () => buy(u.id));
+    cardsEl.appendChild(b);
+    cardEls[u.id] = b;
+  }
+}
+
+function laneLabel(i){ return ["上路","中路","下路"][i]; }
+
+function refreshShop(){
+  const g = S.gold[S.buyer];
+  for (const u of UNITS){
+    const el = cardEls[u.id];
+    if (el) el.disabled = S.phase !== "buy" || u.c > g;
+  }
+  $("buyInfo").textContent = S.phase === "buy"
+    ? `${S.mode === "pvp" ? ["玩家 1","玩家 2"][S.buyer] : (S.buyer === 0 ? "你" : "对手")} · ${laneLabel(S.lane)} · ${g} 金 · 已选 ${S.queue[S.buyer].length}`
+    : "";
+  document.querySelectorAll(".lanebtn").forEach(b => {
+    b.classList.toggle("on", +b.dataset.lane === S.lane);
+  });
+  $("endBtn").disabled = S.phase !== "buy";
+  $("p1gold").textContent = `${S.gold[0]} 金`;
+  $("p2gold").textContent = `${S.gold[1]} 金`;
+  $("p1hp").style.width = (clamp(S.crystal[0],0,CRYSTAL_HP)/CRYSTAL_HP*100) + "%";
+  $("p2hp").style.width = (clamp(S.crystal[1],0,CRYSTAL_HP)/CRYSTAL_HP*100) + "%";
+  $("p1hpText").textContent = Math.max(0, Math.round(S.crystal[0]));
+  $("p2hpText").textContent = Math.max(0, Math.round(S.crystal[1]));
+}
+
+/* ══════════════ 5. 流程 ══════════════ */
+function showOverlay(html){ panel.innerHTML = html; overlay.classList.add("show"); }
+function hideOverlay(){ overlay.classList.remove("show"); }
+
+function menu(){
+  S.phase = "menu";
+  showOverlay(`
+    <h1>水晶战争</h1>
+    <p>20 种兵种，三条路，一座水晶。<br>
+    每回合双方获得<b style="color:#e8eef7">不同的金币</b>，买兵、选路、开打。<br>
+    先打碎对方水晶的人赢。</p>
+    <div class="row">
+      <button class="bigbtn" id="mPvp">双人同屏</button>
+      <button class="bigbtn alt" id="mAi">人机对战</button>
+    </div>
+    <p style="font-size:12px;color:#5b6678">双击卡片选兵，再选上/中/下路投放</p>`);
+  $("mPvp").onclick = () => startMatch("pvp");
+  $("mAi").onclick = () => startMatch("ai");
+}
+
+function startMatch(mode){
+  S.mode = mode;
+  S.round = 1;
+  S.gold = [0,0];
+  S.crystal = [CRYSTAL_HP, CRYSTAL_HP];
+  S.queue = [[],[]];
+  S.units = [];
+  S.buyer = 0;
+  S.speed = 1;
+  $("speedBtn").textContent = "1×";
+  hideOverlay();
+  beginRound();
+}
+
+function beginRound(){
+  const inc = INCOME[Math.min(S.round - 1, INCOME.length - 1)];
+  S.gold[0] += inc;
+  S.gold[1] += inc;
+  S.phase = "buy";
+  S.buyer = 0;
+  S.lane = 1;
+  S.queue = [[],[]];
+  if (S.mode === "ai") aiBuy();
+  $("roundPill").textContent = `第 ${S.round} 回合 · +${inc} 金`;
+  flash(`第 ${S.round} 回合　双方各 +${inc} 金`);
+  refreshShop();
+}
+
+function buy(id){
+  if (S.phase !== "buy") return;
+  const u = UNIT_MAP[id];
+  if (S.gold[S.buyer] < u.c) return;
+  S.gold[S.buyer] -= u.c;
+  S.queue[S.buyer].push({ id, lane: S.lane });
+  beep(660, .05, "square", .03, 120);
+  refreshShop();
+}
+
+function endTurn(){
+  if (S.phase !== "buy") return;
+  if (S.mode === "pvp" && S.buyer === 0){
+    S.phase = "handoff";
+    showOverlay(`
+      <h1 style="font-size:28px">交给玩家 2</h1>
+      <p>玩家 1 已经布好兵。<br>请玩家 2 接手，不要偷看。</p>
+      <button class="bigbtn" id="handoff">继续</button>`);
+    $("handoff").onclick = () => {
+      hideOverlay();
+      S.buyer = 1;
+      S.lane = 1;
+      S.phase = "buy";
+      refreshShop();
+    };
+    return;
+  }
+  if (S.mode === "ai"){
+    // AI 在回合开始时就已经买完，看不到你这一轮的选兵
+  }
+  startBattle();
+}
+
+function aiBuy(){
+  let guard = 0;
+  while (guard++ < 20){
+    const budget = S.gold[1];
+    const affordable = UNITS.filter(u => u.c <= budget);
+    if (!affordable.length) break;
+    // 简单的反制：看对方买了什么甲
+    const enemyArmor = S.aiMemory;
+    let best = null, bestScore = -1;
+    for (const u of affordable){
+      let base = u.hp * 0.55 + u.dmg * 5 + (u.r > 100 ? 12 : 0) + (u.splash ? 18 : 0) + (u.heal ? 15 : 0);
+      let s = base / u.c;
+      if (enemyArmor["重甲"] >= 2 && u.t === "破甲") s *= 1.35;
+      if (enemyArmor["飞行"] >= 1 && u.t === "穿刺") s *= 1.3;
+      if (enemyArmor["灵体"] >= 1 && u.t === "法术") s *= 1.3;
+      s *= 0.82 + rnd(0.36);
+      if (s > bestScore){ bestScore = s; best = u; }
+    }
+    if (!best) break;
+    S.gold[1] -= best.c;
+    S.queue[1].push({ id: best.id, lane: Math.floor(rnd(LANES)) });
+  }
+}
+
+function startBattle(){
+  S.phase = "battle";
+  S.t = 0;
+  S.units = [];
+  // 记录玩家上一轮的护甲构成，供 AI 下一轮参考
+  S.aiMemory = { "轻甲":0, "重甲":0, "灵体":0, "飞行":0 };
+  for (const q of S.queue[0]){
+    const d = UNIT_MAP[q.id];
+    if (S.aiMemory[d.a] !== undefined) S.aiMemory[d.a] += 1;
+  }
+  for (let side = 0; side < 2; side++){
+    for (const q of S.queue[side]){
+      spawnUnit(side, q.id, q.lane);
+    }
+  }
+  S.queue = [[],[]];
+  refreshShop();
+  beep(300, .18, "sine", .05, 160);
+}
+
+function spawnUnit(side, id, lane){
+  const u = UNIT_MAP[id];
+  const yOff = (rnd(1) - 0.5) * 70;
+  S.units.push({
+    uid: S.uid++,
+    side, lane,
+    x: SPAWN_X[side] + (rnd(1) - 0.5) * 26,
+    hp: u.hp, maxHp: u.hp,
+    cd: rnd(0.4),
+    slowT: 0,
+    u, yOff,
+    alive: true,
+  });
+}
+
+/* ══════════════ 6. 战斗模拟 ══════════════ */
+function damageMult(u, target){
+  return (MATRIX[u.t] && MATRIX[u.t][target.u.a]) || 1;
+}
+
+function attackDamage(u){
+  let d = u.u.dmg;
+  if (u.u.rage) d *= 1.7 - 0.7 * (u.hp / u.maxHp);
+  return d;
+}
+
+function tick(dt){
+  const alive = S.units.filter(u => u.alive);
+
+  // 水晶反击：靠近的敌人会被点射
+  for (let side = 0; side < 2; side++){
+    S.crystalCd[side] -= dt;
+    if (S.crystalCd[side] > 0) continue;
+    const cx = CRYSTAL_X[side];
+    let target = null, best = 1e9;
+    for (const o of S.units){
+      if (!o.alive || o.side === side) continue;
+      const d = Math.abs(o.x - cx);
+      if (d <= 130 && d < best){ best = d; target = o; }
+    }
+    if (target){
+      target.hp -= 18;
+      if (target.hp <= 0) target.alive = false;
+      S.crystalCd[side] = 0.9;
+      beep(320, .05, "square", .02, -80);
+    } else {
+      S.crystalCd[side] = 0.25;
+    }
+  }
+
+  // 治疗光环 / 回血
+  for (const u of alive){
+    if (u.u.heal){
+      for (const o of alive){
+        if (o.side === u.side && o.alive && o !== u && Math.abs(o.x - u.x) < u.u.healR){
+          o.hp = Math.min(o.maxHp, o.hp + u.u.heal * dt);
+        }
+      }
+    }
+    if (u.u.regen) u.hp = Math.min(u.maxHp, u.hp + u.u.regen * dt);
+    if (u.slowT > 0) u.slowT -= dt;
+  }
+
+  // 行动
+  for (const u of alive){
+    if (!u.alive) continue;
+    const dir = u.side === 0 ? 1 : -1;
+    let target = null, best = 1e9;
+    for (const o of alive){
+      if (o.side === u.side || !o.alive || o.lane !== u.lane) continue;
+      const d = Math.abs(o.x - u.x);
+      if (d < best){ best = d; target = o; }
+    }
+    if (target && best <= u.u.r){
+      u.cd -= dt;
+      if (u.cd <= 0){
+        u.cd = u.u.cd;
+        hit(u, target, attackDamage(u) * damageMult(u, target));
+      }
+    } else {
+      const cx = CRYSTAL_X[1 - u.side];
+      const atCrystal = u.side === 0 ? u.x >= cx - 46 : u.x <= cx + 46;
+      if (atCrystal){
+        // 抵城：停下砸水晶
+        const stopX = cx - dir * 46;
+        u.x = stopX;
+        u.cd -= dt;
+        if (u.cd <= 0){
+          u.cd = u.u.cd;
+          const dmg = attackDamage(u) * (u.u.crystal || 1) * 0.15;
+          S.crystal[1 - u.side] -= dmg;
+          beep(120, .07, "sawtooth", .035, -40);
+        }
+      } else {
+        const spd = u.u.spd * (u.slowT > 0 ? 0.5 : 1);
+        u.x += dir * spd * dt;
+      }
+    }
+  }
+}
+
+function hit(u, target, dmg){
+  target.hp -= dmg;
+  if (target.hp <= 0){ target.alive = false; beep(180, .05, "sawtooth", .025, -50); }
+  if (u.u.splash){
+    for (const o of S.units){
+      if (o.side === target.side && o.alive && o !== target && o.lane === target.lane
+          && Math.abs(o.x - target.x) < u.u.splash){
+        o.hp -= dmg * 0.55;
+        if (o.hp <= 0) o.alive = false;
+      }
+    }
+  }
+  if (u.u.slow) target.slowT = u.u.slow;
+}
+
+function battleOver(){
+  const a0 = S.units.some(u => u.alive && u.side === 0);
+  const a1 = S.units.some(u => u.alive && u.side === 1);
+  if (!a0 || !a1) return true;
+  return S.t > 24;
+}
+
+function endBattle(){
+  const before = [S.crystal[0], S.crystal[1]];
+  const survivors = S.units.filter(u => u.alive);
+  const s0 = survivors.filter(u => u.side === 0).length;
+  const s1 = survivors.filter(u => u.side === 1).length;
+  if (s0 && !s1) S.crystal[1] -= 6 + s0 * 2;
+  if (s1 && !s0) S.crystal[0] -= 6 + s1 * 2;
+
+  const d0 = Math.max(0, Math.round(before[0] - S.crystal[0]));
+  const d1 = Math.max(0, Math.round(before[1] - S.crystal[1]));
+  S.units = [];
+  S.phase = "roundend";
+  refreshShop();
+  flash(`本回合　P1 水晶 -${d0}　P2 水晶 -${d1}`);
+
+  if (S.crystal[0] <= 0 || S.crystal[1] <= 0) return gameOver();
+  setTimeout(() => {
+    if (S.phase !== "roundend") return;
+    S.round++;
+    beginRound();
+  }, 1150);
+}
+
+function gameOver(){
+  S.phase = "over";
+  const p2Won = S.crystal[0] <= 0;
+  const title = S.mode === "ai"
+    ? (p2Won ? "你输了" : "你赢了")
+    : (p2Won ? "玩家 2 获胜" : "玩家 1 获胜");
+  showOverlay(`
+    <h1 style="font-size:32px">${title}</h1>
+    <p>第 ${S.round} 回合结束 · 水晶 ${Math.max(0,Math.round(S.crystal[0]))} : ${Math.max(0,Math.round(S.crystal[1]))}</p>
+    <div class="row">
+      <button class="bigbtn" id="again">再来一局</button>
+      <button class="bigbtn alt" id="toMenu">换模式</button>
+    </div>`);
+  $("again").onclick = () => startMatch(S.mode);
+  $("toMenu").onclick = () => menu();
+  beep(p2Won ? 160 : 720, .5, "sine", .06, p2Won ? -80 : 200);
+}
+
+/* ══════════════ 7. 渲染 ══════════════ */
+function draw(){
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = cvs.clientWidth || 900;
+  const cssH = cssW * WORLD_H / WORLD_W;
+  if (cvs.width !== Math.round(cssW*dpr)){
+    cvs.width = Math.round(cssW*dpr);
+    cvs.height = Math.round(cssH*dpr);
+    cvs.style.height = cssH + "px";
+  }
+  const scale = cssW / WORLD_W;
+  ctx.setTransform(dpr*scale, 0, 0, dpr*scale, 0, 0);
+  ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+
+  // 背景
+  const bg = ctx.createLinearGradient(0,0,WORLD_W,WORLD_H);
+  bg.addColorStop(0,"#080b13"); bg.addColorStop(.5,"#0a0e18"); bg.addColorStop(1,"#080b13");
+  ctx.fillStyle = bg; ctx.fillRect(0,0,WORLD_W,WORLD_H);
+
+  // 三路
+  for (let i=0;i<LANES;i++){
+    const y = i*LANE_H;
+    ctx.fillStyle = i===1 ? "rgba(255,255,255,.018)" : "rgba(255,255,255,.008)";
+    ctx.fillRect(0, y, WORLD_W, LANE_H);
+    ctx.strokeStyle = "rgba(255,255,255,.05)";
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_W, y); ctx.stroke();
+
+    ctx.font = "10px ui-monospace,Menlo,monospace";
+    ctx.fillStyle = "rgba(255,255,255,.18)";
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText(["上路","中路","下路"][i], 16, y + 8);
+    ctx.textAlign = "right";
+    ctx.fillText(["上路","中路","下路"][i], WORLD_W - 16, y + 8);
+  }
+  // 中线
+  ctx.strokeStyle = "rgba(255,255,255,.06)";
+  ctx.setLineDash([6,10]);
+  ctx.beginPath(); ctx.moveTo(WORLD_W/2, 0); ctx.lineTo(WORLD_W/2, WORLD_H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 水晶
+  drawCrystal(0, CRYSTAL_X[0], "#22d3ee");
+  drawCrystal(1, CRYSTAL_X[1], "#fb7185");
+
+  // 待部署预览（只显示当前买兵的人，避免偷看）
+  drawQueue();
+
+  // 单位
+  for (const u of S.units){
+    if (!u.alive) continue;
+    const y = u.lane*LANE_H + LANE_H/2 + u.yOff;
+    const col = u.side === 0 ? "#22d3ee" : "#fb7185";
+
+    const halo = ctx.createRadialGradient(u.x, y, 2, u.x, y, 26);
+    halo.addColorStop(0, u.side === 0 ? "rgba(34,211,238,.20)" : "rgba(251,113,133,.20)");
+    halo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(u.x, y, 26, 0, Math.PI*2); ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(u.x, y, 17, 0, Math.PI*2);
+    ctx.fillStyle = u.side === 0 ? "rgba(6,30,40,.9)" : "rgba(40,8,18,.9)";
+    ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.stroke();
+
+    ctx.font = "16px 'Segoe UI Emoji','Apple Color Emoji',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(u.u.e, u.x, y + 1);
+
+    // 血条
+    const w = 30, hp = clamp(u.hp/u.maxHp, 0, 1);
+    ctx.fillStyle = "rgba(0,0,0,.6)";
+    ctx.beginPath(); ctx.roundRect(u.x-w/2, y+22, w, 3.5, 2); ctx.fill();
+    ctx.fillStyle = u.side === 0 ? "#22d3ee" : "#fb7185";
+    ctx.beginPath(); ctx.roundRect(u.x-w/2, y+22, w*hp, 3.5, 2); ctx.fill();
+  }
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+}
+
+function drawQueue(){
+  let side = -1;
+  if (S.phase === "buy") side = S.buyer;
+  else if (S.phase === "handoff") return;   // 交接时隐藏上一个玩家的布阵
+  if (side < 0) return;
+  const list = S.queue[side];
+  if (!list.length) return;
+  const counts = [0,0,0];
+  const dir = side === 0 ? 1 : -1;
+  ctx.globalAlpha = .62;
+  for (const q of list){
+    const lane = q.lane;
+    const idx = counts[lane]++;
+    const x = SPAWN_X[side] + dir * (idx * 30);
+    const y = lane*LANE_H + LANE_H/2;
+    const u = UNIT_MAP[q.id];
+    ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI*2);
+    ctx.fillStyle = side === 0 ? "rgba(6,30,40,.9)" : "rgba(40,8,18,.9)";
+    ctx.fill();
+    ctx.strokeStyle = side === 0 ? "rgba(34,211,238,.55)" : "rgba(251,113,133,.55)";
+    ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.font = "14px 'Segoe UI Emoji','Apple Color Emoji',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(u.e, x, y + 1);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+}
+
+function drawCrystal(side, x, color){  const h = clamp(S.crystal[side]/CRYSTAL_HP, 0, 1);
+  const cy = WORLD_H/2;
+  ctx.save();
+  ctx.translate(x, cy);
+
+  const glow = ctx.createRadialGradient(0,0,4,0,0,70);
+  glow.addColorStop(0, color + "55");
+  glow.addColorStop(1, color + "00");
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0,0,70,0,Math.PI*2); ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(0,-42); ctx.lineTo(22,-8); ctx.lineTo(0,44); ctx.lineTo(-22,-8);
+  ctx.closePath();
+  ctx.fillStyle = color + "33";
+  ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+
+  // 内部裂纹随血量增加
+  ctx.strokeStyle = "rgba(0,0,0,.5)"; ctx.lineWidth = 1;
+  const cracks = Math.round((1-h) * 5);
+  for (let i=0;i<cracks;i++){
+    ctx.beginPath();
+    ctx.moveTo(0,-20+i*9);
+    ctx.lineTo((i%2?1:-1)*12, 4+i*6);
+    ctx.stroke();
+  }
+
+  // 血量竖条
+  ctx.fillStyle = "rgba(255,255,255,.1)";
+  ctx.fillRect(-34, -46, 5, 92);
+  ctx.fillStyle = color;
+  ctx.fillRect(-34, 46 - 92*h, 5, 92*h);
+  ctx.restore();
+}
+
+/* ══════════════ 8. 主循环 ══════════════ */
+let lastT = 0;
+function loop(now){
+  const dt = Math.min(0.05, (now - lastT) / 1000 || 0);
+  lastT = now;
+
+  if (S.phase === "battle"){
+    const step = dt * S.speed;
+    S.t += step;
+    // 固定小步长，保证不同帧率下结果一致
+    let remain = step;
+    while (remain > 0){
+      const s = Math.min(1/60, remain);
+      tick(s);
+      remain -= s;
+    }
+    if (battleOver()){
+      endBattle();
+    }
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ══════════════ 9. 杂项按钮 ══════════════ */
+let flashTimer = null;
+function flash(text){
+  const el = $("banner");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.add("show");
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => el.classList.remove("show"), 1800);
+}
+
+function help(){
+  const rows = Object.entries(MATRIX).map(([atk, m]) => {
+    const cells = Object.entries(m).map(([ar, v]) => `${ar} ${v.toFixed(2)}`).join("　");
+    return `<div style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#8b98ab;text-align:left">${atk}　${cells}</div>`;
+  }).join("");
+  showOverlay(`
+    <h1 style="font-size:24px">克制表</h1>
+    <p>攻击类型 → 护甲类型的伤害倍率</p>
+    <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>
+    <p style="font-size:12px">攻城 对水晶额外 ×2.2；灵体吃物理只有 45%，但吃法术 160%。</p>
+    <button class="bigbtn" id="closeHelp">知道了</button>`);
+  $("closeHelp").onclick = () => {
+    hideOverlay();
+    if (S.phase === "menu") menu();
+  };
+}
+
+/* ══════════════ 10. 事件绑定 ══════════════ */
+buildCards();
+document.querySelectorAll(".lanebtn").forEach(b => {
+  b.addEventListener("click", () => { S.lane = +b.dataset.lane; refreshShop(); });
+});
+$("endBtn").addEventListener("click", endTurn);
+$("speedBtn").addEventListener("click", () => {
+  S.speed = S.speed === 1 ? 2 : S.speed === 2 ? 4 : 1;
+  $("speedBtn").textContent = S.speed + "×";
+});
+$("helpBtn").addEventListener("click", help);
+
+window.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
+  if (e.code === "Enter"){
+    if (S.phase === "buy") endTurn();
+    else if (S.phase === "handoff") $("handoff")?.click();
+  }
+  if (["Digit1","Digit2","Digit3"].includes(e.code) && S.phase === "buy"){
+    S.lane = +e.code.slice(-1) - 1;
+    refreshShop();
+  }
+});
+
+refreshShop();
+menu();
+requestAnimationFrame(loop);
+
+window.__S = S;
+window.__buy = buy;
+window.__endTurn = endTurn;
+window.__UNITS = UNITS;
+window.__spawn = spawnUnit;
+window.__tick = tick;
+window.__map = UNIT_MAP;
+})();
+</script>
+</body>
+</html>
