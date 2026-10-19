@@ -392,22 +392,24 @@ function startBattle(){
     if (S.aiMemory[d.a] !== undefined) S.aiMemory[d.a] += 1;
   }
   for (let side = 0; side < 2; side++){
-    for (const q of S.queue[side]){
-      spawnUnit(side, q.id, q.lane);
-    }
+    const lanes = [[], [], []];
+    for (const q of S.queue[side]) lanes[q.lane].push(q);
+    lanes.forEach((list, lane) => {
+      list.forEach((q, i) => spawnUnit(side, q.id, lane, i, list.length));
+    });
   }
   S.queue = [[],[]];
   refreshShop();
   beep(300, .18, "sine", .05, 160);
 }
 
-function spawnUnit(side, id, lane){
+function spawnUnit(side, id, lane, slot = 0, total = 1){
   const u = UNIT_MAP[id];
-  const yOff = (rnd(1) - 0.5) * 70;
+  const yOff = total > 1 ? (slot - (total - 1) / 2) * 22 : 0;
   S.units.push({
     uid: S.uid++,
     side, lane,
-    x: SPAWN_X[side] + (rnd(1) - 0.5) * 26,
+    x: SPAWN_X[side] + (total > 1 ? (slot - (total - 1) / 2) * 14 : 0),
     hp: u.hp, maxHp: u.hp,
     cd: rnd(0.4),
     slowT: 0,
