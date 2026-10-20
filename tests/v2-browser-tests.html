@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>水晶战争 V2.0 自动化测试</title>
+<style>
+body{font-family:Consolas,"Microsoft YaHei",monospace;background:#0b1020;color:#dbeafe;padding:24px;line-height:1.55}
+h1{font-size:20px;margin:0 0 14px}.pass{color:#4ade80}.fail{color:#fb7185}.muted{color:#94a3b8}
+pre{white-space:pre-wrap;word-break:break-word;background:#111827;padding:16px;border-radius:10px}
+iframe{width:1px;height:1px;opacity:0;position:absolute;left:-9999px}
+</style>
+</head>
+<body>
+<h1>水晶战争 V2.0 自动化测试</h1>
+<div class="muted">测试会在同源 iframe 中运行游戏逻辑，不需要网络。</div>
+<pre id="out">RUNNING</pre>
+<iframe id="game" src="../index.html?debug=1"></iframe>
+<iframe id="normal" src="../index.html"></iframe>
+<script>
+const out = document.getElementById('out');
+const results = [];
+let perfResult = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function waitFor(check, timeout = 4000) {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    const timer = setInterval(() => {
+      try {
+        if (check()) { clearInterval(timer); resolve(); }
+        else if (Date.now() - start > timeout) { clearInterval(timer); reject(new Error('timeout')); }
+      } catch (e) { clearInterval(timer); reject(e); }
+    }, 30);
+  });
+}
+function test(name, fn) {
+  return Promise.resolve().then(fn).then(() => {
+    results.push({name, ok:true});
+  }).catch(e => {
+    results.push({name, ok:false, error:String(e && e.stack || e)});
+  });
+}
+function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
+function eq(a,b,msg) { if (a !== b) throw new Error((msg || 'not equal') + `: ${a} !== ${b}`); }
+function lastEvent(api, type) { return api.getEvents().filter(e => e.type === type).at(-1); }
+
+(async () => {
+  const frame = document.getElementById('game');
+  const normal = document.getElementById('normal');
+  await Promise.all([waitFor(() => frame.contentWindow?.__CRYSTAL_DEBUG__), waitFor(() => normal.contentWindow?.document?.readyState === 'complete')]);
+  const win = frame.contentWindow;
+  const doc = frame.contentDocument;
+  const api = win.__CRYSTAL_DEBUG__;
+
+  await test('调试接口与生产隔离', () => {
+    assert(api, 'debug API missing');
+    eq(normal.contentWindow.__CRYSTAL_DEBUG__, undefined, 'production debug API should be absent');
+    eq(api.constants.MAX_UNITS_PER_SIDE, 12);
+    eq(api.constants.MAX_ROUNDS, 15);
+    assert(Math.abs(api.constants.FIXED_DT - 1/60) < 1e-12);
+  });
+
+  await test('初始状态与金币发放', () => {
+    api.reset({mode:'pvp', seed:123});
+    const s = api.getState();
+    eq(s.round, 1); eq(s.phase, 'buy'); eq(s.gold[0], 12); eq(s.gold[1], 12);
+    eq(s.crystal[0], 240); eq(s.crystal[1], 240); eq(s.queue[0].length, 0);
+  });
+
+  await test('购买与撤销退款', () => {
+    api.reset({mode:'pvp', seed:123});
+    assert(api.buy('militia', 0));
+    let s = api.getState();
+    eq(s.gold[0], 10); eq(s.queue[0].length, 1); eq(s.queue[0][0].lane, 0);
+    assert(api.undoBuy());
+    s = api.getState();
+    eq(s.gold[0], 12); eq(s.queue[0].length, 0);
+  });
+
+  await test('每方 12 单位上限', () => {
+    api.reset({mode:'pvp', seed:123});
+    api.patchState({gold:[100,100]});
+    for (let i=0; i<12; i++) assert(api.buy('militia', i%3));
+    eq(api.getState().queue[0].length, 12);
+    eq(api.buy('militia', 0), false);
+    eq(api.getState().queue[0].length, 12);
+    eq(doc.querySelectorAll('.card:disabled').length, 20);
+  });
+
+  await test('三档 AI 与信息约束', () => {
+    for (const difficulty of ['easy','normal','hard']) {
+      api.reset({mode:'ai', seed:424242, difficulty});
+      const s = api.getState();
+      eq(s.difficulty, difficulty);
+      eq(s.phase, 'buy');
+      eq(s.queue[0].length, 0);
+      assert(s.queue[1].length > 0, difficulty + ' AI did not buy');
+      assert(s.queue[1].length <= 12, difficulty + ' AI exceeded cap');
+    }
+  });
+
+  await test('双人交接与购买期信息隔离', () => {
+    api.reset({mode:'pvp', seed:123});
+    api.buy('militia', 0);
+    api.endTurn();
+    let s = api.getState();
+    eq(s.phase, 'handoff');
+    assert(doc.getElementById('overlay').classList.contains('show'));
+    eq(doc.getElementById('handoff') !== null, true);
+    doc.getElementById('handoff').click();
+    s = api.getState();
+    eq(s.phase, 'buy'); eq(s.buyer, 1); eq(s.queue[0].length, 1);
+  });
+
+  await test('克制矩阵与飞行裁决', () => {
+    eq(api.matrixMultiplier('破甲','重甲'), 1.8);
+    eq(api.matrixMultiplier('物理','重甲'), 0.55);
+    eq(api.matrixMultiplier('物理','飞行'), 1.0);
+    eq(api.matrixMultiplier('攻城','飞行'), 0);
+  });
+
+  await test('固定步长与倍速同果', () => {
+    function run(realSeconds, speed) {
+      api.reset({mode:'pvp', seed:987654});
+      api.patchState({queue:[
+        [{id:'spear',lane:0},{id:'shield',lane:1},{id:'archer',lane:2}],
+        [{id:'militia',lane:0},{id:'breaker',lane:1},{id:'mage',lane:2}]
+      ]});
+      api.startBattle();
+      api.advance(realSeconds, speed);
+      return {s:api.getState(), e:lastEvent(api,'battle_end')};
+    }
+    const a = run(24, 1);
+    const b = run(6, 4);
+    assert(a.e && b.e, 'battle_end missing');
+    eq(JSON.stringify(a.e.data), JSON.stringify(b.e.data), 'battle_end differs');
+    eq(a.s.crystal[0], b.s.crystal[0], 'P1 crystal differs');
+    eq(a.s.crystal[1], b.s.crystal[1], 'P2 crystal differs');
+  });
+
+  await test('双水晶同帧归零判平局', async () => {
+    api.reset({mode:'pvp', seed:1});
+    api.patchState({phase:'battle', units:[], crystal:[-1,-1]});
+    api.advance(1/60, 1);
+    await sleep(500);
+    const s = api.getState();
+    eq(s.result, 'draw'); eq(s.phase, 'draw');
+  });
+
+  await test('第 15 回合强制终局', async () => {
+    api.reset({mode:'pvp', seed:1});
+    api.patchState({round:15, phase:'battle', units:[], crystal:[200,180]});
+    api.advance(1/60, 1);
+    eq(api.getState().phase, 'settle');
+    await sleep(1300);
+    const s = api.getState();
+    eq(s.phase, 'over'); eq(s.result, 'p1_win');
+  });
+
+  await test('重开完整清理状态', () => {
+    api.reset({mode:'pvp', seed:7});
+    api.patchState({uid:999, crystalCd:[.5,.6], aiMemory:{轻甲:4,重甲:3,灵体:2,飞行:1}, result:'p2_win', acc:.3});
+    api.reset({mode:'pvp', seed:7});
+    const s = api.getState();
+    eq(s.uid, 1); eq(s.crystalCd[0], 0); eq(s.crystalCd[1], 0);
+    eq(s.aiMemory.轻甲, 0); eq(s.result, null); eq(s.acc, 0);
+  });
+
+  await test('可访问性基础属性', () => {
+    const canvas = doc.getElementById('field');
+    const overlay = doc.getElementById('overlay');
+    assert(canvas.getAttribute('aria-label'), 'canvas aria-label missing');
+    eq(overlay.getAttribute('role'), 'dialog');
+    eq(overlay.getAttribute('aria-modal'), 'true');
+    assert(doc.getElementById('undoBtn'), 'undo button missing');
+    assert(doc.getElementById('soundBtn'), 'sound button missing');
+    eq(doc.querySelectorAll('.card[aria-label]').length, 20);
+  });
+
+  await test('24 单位压力模拟', () => {
+    api.reset({mode:'pvp', seed:20261020});
+    const ids=['militia','spear','shield','archer','assassin','breaker','knight','mage','priest','catapult','ballista','wraith'];
+    const p1=ids.map((id,i)=>({id,lane:i%3}));
+    const p2=[...ids].reverse().map((id,i)=>({id,lane:i%3}));
+    api.patchState({queue:[p1,p2]});
+    api.startBattle();
+    eq(api.getState().units.length, 24);
+    const t0=performance.now();
+    api.advance(24,1);
+    const elapsed=performance.now()-t0;
+    perfResult={elapsedMs:+elapsed.toFixed(2), avgTickMs:+(elapsed/1440).toFixed(4)};
+    window.__PERF_RESULT__=perfResult;
+    assert(elapsed < 5000, '24-unit simulation exceeded 5s');
+  });
+
+  const passed = results.filter(r => r.ok).length;
+  const failed = results.length - passed;
+  out.textContent = results.map(r => `${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.ok ? '' : '\n      ' + r.error}`).join('\n') + `\n\nTOTAL ${results.length}  PASS ${passed}  FAIL ${failed}` + (perfResult ? `\nPERF 24-unit ${perfResult.elapsedMs}ms  ${perfResult.avgTickMs}ms/tick` : '');
+  window.__TEST_RESULTS__ = {total:results.length, passed, failed, results, perf:perfResult};
+  document.title = failed ? `FAIL ${failed}` : `PASS ${passed}`;
+})().catch(e => {
+  out.textContent = 'RUNNER ERROR\n' + (e && e.stack || e);
+  window.__TEST_RESULTS__ = {total:0, passed:0, failed:1, results:[{name:'runner',ok:false,error:String(e)}]};
+});
+</script>
+</body>
+</html>

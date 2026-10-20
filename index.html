@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>水晶战争 · CRYSTAL DUEL</title>
+<meta name="version" content="2.0.0">
+<title>水晶战争 · CRYSTAL DUEL V2.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b12'/%3E%3Cpath d='M16 5l8 11-8 11-8-11z' fill='%2322d3ee'/%3E%3C/svg%3E">
 <style>
   :root{
@@ -64,6 +65,7 @@
             border:1px solid rgba(255,255,255,.16); background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
             border-radius:10px; padding:7px 14px; cursor:pointer}
   .ghostbtn:disabled{opacity:.4; cursor:not-allowed}
+  .ghostbtn.alt{opacity:.55; border-color:rgba(255,255,255,.08)}
 
   .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:6px; max-height:224px; overflow:auto; padding-right:2px}
   .card{position:relative; text-align:left; border:1px solid var(--line); border-radius:10px;
@@ -90,17 +92,42 @@
   .bigbtn{font-family:ui-monospace,Menlo,monospace; font-size:13px; color:#0b0e14; background:var(--ink);
           border:0; border-radius:10px; padding:11px 22px; cursor:pointer; font-weight:700}
   .bigbtn.alt{background:transparent; color:var(--ink); border:1px solid rgba(255,255,255,.18)}
+  .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  button:focus-visible,.card:focus-visible,.lanebtn:focus-visible{outline:2px solid #a5f3fc;outline-offset:2px}
+  .stage.shake{animation:stageShake .18s linear}
+  @keyframes stageShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+  .damageFlash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:inset 0 0 70px rgba(251,113,133,.72)}
+  .damageFlash.p1{box-shadow:inset 0 0 70px rgba(34,211,238,.72)}
+  .damageFlash.show{opacity:1}
+  .ghostbtn,.lanebtn{min-height:32px}
+  @media (max-width:700px){
+    body{padding:8px}
+    header{align-items:flex-start;flex-wrap:wrap}
+    .meta{flex-wrap:wrap;justify-content:flex-end;gap:6px}
+    .shophead{flex-wrap:wrap}
+    #buyInfo{order:3;width:100%;min-height:18px}
+    .cards{grid-template-columns:repeat(2,minmax(0,1fr));max-height:300px}
+    .card{min-height:76px;padding:9px}
+    .ghostbtn,.lanebtn,.bigbtn{min-height:44px}
+    .panel h1{font-size:30px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+    .stage.shake{animation:none}
+  }
   footer{font-family:ui-monospace,Menlo,monospace; font-size:10px; color:#414b5c; text-align:center; letter-spacing:.06em}
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <div class="brand"><b>水晶战争</b><em>crystal duel</em></div>
+    <div class="brand"><b>水晶战争</b><em>crystal duel · v2.0</em></div>
     <div class="meta">
       <span class="pill" id="roundPill">第 1 回合</span>
-      <button class="ghostbtn" id="speedBtn" style="padding:4px 10px">1×</button>
-      <button class="ghostbtn" id="helpBtn" style="padding:4px 10px">克制表</button>
+      <button class="ghostbtn" id="speedBtn" type="button" aria-label="切换战斗倍速" style="padding:4px 10px">1×</button>
+      <button class="ghostbtn" id="soundBtn" type="button" aria-label="切换音效">音效</button>
+      <button class="ghostbtn" id="helpBtn" type="button" aria-label="打开克制表" style="padding:4px 10px">克制表</button>
+      <button class="ghostbtn" id="debugBtn" type="button" hidden style="padding:4px 10px">调试</button>
     </div>
   </header>
 
@@ -111,7 +138,11 @@
     <div class="coins" id="p2gold">0 金</div>
   </div>
 
-  <div class="stage"><canvas id="field"></canvas><div class="banner" id="banner"></div></div>
+  <div class="stage" id="stage">
+    <canvas id="field" role="img" tabindex="0" aria-label="三路战场，等待开局"></canvas>
+    <div class="damageFlash" id="damageFlash" aria-hidden="true"></div>
+    <div class="banner" id="banner" aria-hidden="true"></div>
+  </div>
 
   <div class="bar p1">
     <div class="who">P1</div>
@@ -129,15 +160,17 @@
       </div>
       <div class="spacer"></div>
       <div class="meta" id="buyInfo" style="font-size:11px"></div>
-      <button class="ghostbtn" id="endBtn">结束回合 ⏎</button>
+      <button class="ghostbtn" id="undoBtn" type="button" aria-label="撤销最近一次购买">撤销</button>
+      <button class="ghostbtn" id="endBtn" type="button">结束回合 ⏎</button>
     </div>
     <div class="cards" id="cards"></div>
   </div>
 
-  <footer>选兵 → 选路 → 结束回合　·　先打碎对方水晶者胜</footer>
+  <footer>选兵 → 选路 → 结束回合　·　每方最多 12 单位　·　第 15 回合终局</footer>
+  <div class="sr-only" id="a11yStatus" aria-live="polite"></div>
 </div>
 
-<div class="overlay" id="overlay"><div class="panel" id="panel"></div></div>
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="游戏对话框" aria-hidden="true"><div class="panel" id="panel"></div></div>
 
 <script>
 (() => {
@@ -181,32 +214,68 @@ const UNITS = [
 ];
 const UNIT_MAP = Object.fromEntries(UNITS.map(u => [u.id, u]));
 
+const FIXED_DT = 1 / 60;
+const MAX_UNITS_PER_SIDE = 12;
+const MAX_ROUNDS = 15;
+const EVENT_LIMIT = 120;
+const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 const INCOME = [12, 10, 15, 9, 17, 12, 20, 14, 22, 16, 25, 18, 28, 20, 30];
 const CRYSTAL_HP = 240;
+const DIFFICULTIES = { easy: "简单", normal: "普通", hard: "困难" };
+
+function makeSeed(){
+  return ((Date.now() & 0xffffffff) ^ ((Math.random() * 0xffffffff) >>> 0)) >>> 0;
+}
+
+function createInitialState(mode = "ai", seed = makeSeed(), difficulty = "normal"){
+  return {
+    mode, difficulty,
+    phase: "menu",           // menu | buy | handoff | battle | settle | over | draw
+    round: 1,
+    gold: [0, 0],
+    crystal: [CRYSTAL_HP, CRYSTAL_HP],
+    buyer: 0,
+    lane: 1,
+    queue: [[], []],
+    units: [],
+    uid: 1,
+    t: 0,
+    speed: 1,
+    crystalCd: [0, 0],
+    aiMemory: { "轻甲":0, "重甲":0, "灵体":0, "飞行":0 },
+    aiLaneMemory: [0, 0, 0],
+    seed: seed >>> 0,
+    rngState: seed >>> 0,
+    acc: 0,
+    result: null,
+    events: [],
+    muted: false,
+    modalKind: null,
+    settleToken: 0,
+    lastFrameSteps: 0,
+    lowFrameGuard: 0,
+  };
+}
 
 /* ══════════════ 2. 状态 ══════════════ */
-const S = {
-  mode: "ai",              // ai | pvp
-  phase: "menu",           // menu | buy | handoff | battle | roundend | over
-  round: 1,
-  gold: [0, 0],
-  crystal: [CRYSTAL_HP, CRYSTAL_HP],
-  buyer: 0,
-  lane: 1,
-  queue: [[], []],
-  units: [],
-  uid: 1,
-  t: 0,
-  speed: 1,
-  crystalCd: [0, 0],
-  aiMemory: { "轻甲":0, "重甲":0, "灵体":0, "飞行":0 },
-  result: null,
-};
+let S = createInitialState();
 
 /* ══════════════ 3. 工具 ══════════════ */
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => v<a?a:v>b?b:v;
-const rnd = (a=1) => Math.random()*a;
+
+function nextRandom(){
+  let t = (S.rngState += 0x6D2B79F5) >>> 0;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+const rnd = (a=1) => nextRandom() * a;
+
+function logEvent(type, data = {}){
+  S.events.push({ type, round: S.round, at: Math.round(performance.now()), data });
+  if (S.events.length > EVENT_LIMIT) S.events.shift();
+}
 
 let AC = null;
 function audio(){
@@ -215,6 +284,7 @@ function audio(){
   return AC;
 }
 function beep(freq, dur=.08, type="triangle", gain=.05, slide=0){
+  if (S.muted) return;
   const ac = audio(); if (!ac) return;
   const o = ac.createOscillator(), g = ac.createGain();
   o.type = type; o.frequency.value = freq;
@@ -239,8 +309,11 @@ function buildCards(){
   cardEls = {};
   for (const u of UNITS){
     const b = document.createElement("button");
+    b.type = "button";
     b.className = "card";
     b.dataset.id = u.id;
+    b.setAttribute("aria-label", `${u.n}，${u.c} 金，生命 ${u.hp}，伤害 ${u.dmg}，${u.a}，${u.t}`);
+    b.title = `${u.n}｜${u.c} 金｜生命 ${u.hp}｜伤害 ${u.dmg}｜${u.a}·${u.t}`;
     b.innerHTML = `
       <div class="ic">${u.e}</div>
       <div class="nm">${u.n}</div>
@@ -256,57 +329,109 @@ function buildCards(){
 function laneLabel(i){ return ["上路","中路","下路"][i]; }
 
 function refreshShop(){
-  const g = S.gold[S.buyer];
+  const g = S.gold[S.buyer] || 0;
+  const q = S.queue[S.buyer] || [];
+  const full = q.length >= MAX_UNITS_PER_SIDE;
   for (const u of UNITS){
     const el = cardEls[u.id];
-    if (el) el.disabled = S.phase !== "buy" || u.c > g;
+    if (el) el.disabled = S.phase !== "buy" || full || u.c > g;
   }
+  const who = S.mode === "pvp" ? ["玩家 1","玩家 2"][S.buyer] : (S.buyer === 0 ? "你" : "对手");
   $("buyInfo").textContent = S.phase === "buy"
-    ? `${S.mode === "pvp" ? ["玩家 1","玩家 2"][S.buyer] : (S.buyer === 0 ? "你" : "对手")} · ${laneLabel(S.lane)} · ${g} 金 · 已选 ${S.queue[S.buyer].length}`
+    ? `${who} · ${laneLabel(S.lane)} · ${g} 金 · 已选 ${q.length}/${MAX_UNITS_PER_SIDE}${full ? " · 已达上限" : ""}`
     : "";
   document.querySelectorAll(".lanebtn").forEach(b => {
-    b.classList.toggle("on", +b.dataset.lane === S.lane);
+    const on = +b.dataset.lane === S.lane;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+    b.disabled = S.phase !== "buy";
   });
   $("endBtn").disabled = S.phase !== "buy";
+  $("undoBtn").disabled = S.phase !== "buy" || q.length === 0;
+  $("soundBtn").textContent = S.muted ? "静音" : "音效";
+  $("soundBtn").setAttribute("aria-pressed", String(S.muted));
   $("p1gold").textContent = `${S.gold[0]} 金`;
   $("p2gold").textContent = `${S.gold[1]} 金`;
   $("p1hp").style.width = (clamp(S.crystal[0],0,CRYSTAL_HP)/CRYSTAL_HP*100) + "%";
   $("p2hp").style.width = (clamp(S.crystal[1],0,CRYSTAL_HP)/CRYSTAL_HP*100) + "%";
   $("p1hpText").textContent = Math.max(0, Math.round(S.crystal[0]));
   $("p2hpText").textContent = Math.max(0, Math.round(S.crystal[1]));
+  updateA11yStatus(who, q.length);
+}
+
+function updateA11yStatus(who = "", queueCount = 0){
+  const phaseText = {
+    menu: "主菜单", buy: "购买阶段", handoff: "交接阶段",
+    battle: "战斗阶段", settle: "结算阶段", over: "对局结束", draw: "平局",
+  }[S.phase] || S.phase;
+  const status = `${phaseText}。第 ${S.round} 回合。P1 水晶 ${Math.max(0,Math.round(S.crystal[0]))}，P2 水晶 ${Math.max(0,Math.round(S.crystal[1]))}。P1 ${S.gold[0]} 金，P2 ${S.gold[1]} 金。`;
+  $("a11yStatus").textContent = status;
+  $("field").setAttribute("aria-label", `${status}${S.phase === "buy" ? ` 当前 ${who}，已选 ${queueCount}/${MAX_UNITS_PER_SIDE}。` : ""}`);
 }
 
 /* ══════════════ 5. 流程 ══════════════ */
-function showOverlay(html){ panel.innerHTML = html; overlay.classList.add("show"); }
-function hideOverlay(){ overlay.classList.remove("show"); }
+let lastFocused = null;
+function showOverlay(html, kind = "modal"){
+  lastFocused = document.activeElement;
+  S.modalKind = kind;
+  panel.innerHTML = html;
+  overlay.classList.add("show");
+  overlay.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => {
+    const first = panel.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+    first?.focus();
+  });
+}
+function hideOverlay(){
+  overlay.classList.remove("show");
+  overlay.setAttribute("aria-hidden", "true");
+  S.modalKind = null;
+  if (lastFocused?.isConnected) lastFocused.focus();
+  lastFocused = null;
+}
+
+function refreshDifficultyButtons(){
+  panel.querySelectorAll("[data-difficulty]").forEach(b => {
+    const on = b.dataset.difficulty === S.difficulty;
+    b.classList.toggle("alt", !on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+}
 
 function menu(){
   S.phase = "menu";
+  refreshShop();
   showOverlay(`
     <h1>水晶战争</h1>
     <p>20 种兵种，三条路，一座水晶。<br>
     每回合双方获得<b style="color:#e8eef7">不同的金币</b>，买兵、选路、开打。<br>
-    先打碎对方水晶的人赢。</p>
-    <div class="row">
-      <button class="bigbtn" id="mPvp">双人同屏</button>
-      <button class="bigbtn alt" id="mAi">人机对战</button>
+    第 15 回合强制终局，每方最多部署 12 个单位。</p>
+    <div class="row" role="group" aria-label="人机难度">
+      <button class="ghostbtn difftab" type="button" data-difficulty="easy">简单</button>
+      <button class="ghostbtn difftab" type="button" data-difficulty="normal">普通</button>
+      <button class="ghostbtn difftab" type="button" data-difficulty="hard">困难</button>
     </div>
-    <p style="font-size:12px;color:#5b6678">双击卡片选兵，再选上/中/下路投放</p>`);
+    <div class="row">
+      <button class="bigbtn" id="mPvp" type="button">双人同屏</button>
+      <button class="bigbtn alt" id="mAi" type="button">人机对战</button>
+    </div>
+    <p style="font-size:12px;color:#5b6678">单击卡片选兵，再选上/中/下路投放</p>`, "menu");
+  refreshDifficultyButtons();
+  panel.querySelectorAll("[data-difficulty]").forEach(b => {
+    b.onclick = () => { S.difficulty = b.dataset.difficulty; refreshDifficultyButtons(); };
+  });
   $("mPvp").onclick = () => startMatch("pvp");
   $("mAi").onclick = () => startMatch("ai");
 }
 
-function startMatch(mode){
-  S.mode = mode;
-  S.round = 1;
-  S.gold = [0,0];
-  S.crystal = [CRYSTAL_HP, CRYSTAL_HP];
-  S.queue = [[],[]];
-  S.units = [];
-  S.buyer = 0;
-  S.speed = 1;
+function startMatch(mode, options = {}){
+  const seed = options.seed ?? makeSeed();
+  const difficulty = options.difficulty || S.difficulty || "normal";
+  S = createInitialState(mode, seed, difficulty);
+  lastT = performance.now();
   $("speedBtn").textContent = "1×";
   hideOverlay();
+  logEvent("match_start", { mode, difficulty, seed: S.seed });
   beginRound();
 }
 
@@ -318,30 +443,57 @@ function beginRound(){
   S.buyer = 0;
   S.lane = 1;
   S.queue = [[],[]];
+  S.acc = 0;
   if (S.mode === "ai") aiBuy();
-  $("roundPill").textContent = `第 ${S.round} 回合 · +${inc} 金`;
-  flash(`第 ${S.round} 回合　双方各 +${inc} 金`);
+  $("roundPill").textContent = `第 ${S.round} 回合 · +${inc} 金${S.round === MAX_ROUNDS ? " · 终局" : ""}`;
+  flash(`第 ${S.round} 回合　双方各 +${inc} 金${S.round === MAX_ROUNDS ? "　最终回合" : ""}`);
+  logEvent("round_start", { income: inc, gold: [...S.gold] });
   refreshShop();
 }
 
-function buy(id){
-  if (S.phase !== "buy") return;
+function purchaseUnit(side, id, lane, options = {}){
   const u = UNIT_MAP[id];
-  if (S.gold[S.buyer] < u.c) return;
-  S.gold[S.buyer] -= u.c;
-  S.queue[S.buyer].push({ id, lane: S.lane });
-  beep(660, .05, "square", .03, 120);
+  if (!u || (side !== 0 && side !== 1)) return false;
+  if (S.queue[side].length >= MAX_UNITS_PER_SIDE) return false;
+  if (S.gold[side] < u.c) return false;
+  S.gold[side] -= u.c;
+  S.queue[side].push({ id, lane });
+  if (options.feedback !== false) beep(660, .05, "square", .03, 120);
+  logEvent("buy", { side, unit_id: id, cost: u.c, lane, gold_left: S.gold[side], queue_count: S.queue[side].length });
+  return true;
+}
+
+function buy(id, laneOverride = null){
+  if (S.phase !== "buy") return false;
+  if (laneOverride !== null && laneOverride >= 0 && laneOverride < LANES) S.lane = laneOverride;
+  const ok = purchaseUnit(S.buyer, id, S.lane);
   refreshShop();
+  return ok;
+}
+
+function undoBuy(){
+  if (S.phase !== "buy") return false;
+  const q = S.queue[S.buyer];
+  const item = q.pop();
+  if (!item) return false;
+  const u = UNIT_MAP[item.id];
+  S.gold[S.buyer] += u.c;
+  logEvent("undo_buy", { side: S.buyer, unit_id: item.id, refund: u.c, queue_count: q.length });
+  beep(360, .04, "triangle", .02, -40);
+  refreshShop();
+  return true;
 }
 
 function endTurn(){
   if (S.phase !== "buy") return;
+  logEvent("end_turn", { side: S.buyer, queue_count: S.queue[S.buyer].length });
   if (S.mode === "pvp" && S.buyer === 0){
     S.phase = "handoff";
+    refreshShop();
     showOverlay(`
       <h1 style="font-size:28px">交给玩家 2</h1>
       <p>玩家 1 已经布好兵。<br>请玩家 2 接手，不要偷看。</p>
-      <button class="bigbtn" id="handoff">继续</button>`);
+      <button class="bigbtn" id="handoff" type="button">继续</button>`, "handoff");
     $("handoff").onclick = () => {
       hideOverlay();
       S.buyer = 1;
@@ -351,45 +503,66 @@ function endTurn(){
     };
     return;
   }
-  if (S.mode === "ai"){
-    // AI 在回合开始时就已经买完，看不到你这一轮的选兵
-  }
   startBattle();
+}
+
+function chooseAiLane(){
+  if (S.difficulty !== "hard" || S.aiLaneMemory.every(v => v === 0)) {
+    return Math.floor(rnd(LANES));
+  }
+  const min = Math.min(...S.aiLaneMemory);
+  const weak = S.aiLaneMemory.map((v, i) => v === min ? i : -1).filter(i => i >= 0);
+  if (rnd() < 0.7) return weak[Math.floor(rnd(weak.length))];
+  return Math.floor(rnd(LANES));
+}
+
+function aiScore(u, difficulty){
+  let score = u.hp * 0.55 + u.dmg * 5 + (u.r > 100 ? 12 : 0) + (u.splash ? 18 : 0) + (u.heal ? 15 : 0);
+  score /= u.c;
+  if (difficulty === "easy") return score * (0.6 + rnd(0.8));
+  const enemyArmor = S.aiMemory;
+  const counter = difficulty === "hard" ? 1.5 : 1.35;
+  if (enemyArmor["重甲"] >= 2 && u.t === "破甲") score *= counter;
+  if (enemyArmor["飞行"] >= 1 && u.t === "穿刺") score *= counter;
+  if (enemyArmor["灵体"] >= 1 && u.t === "法术") score *= counter;
+  score *= 0.82 + rnd(0.36);
+  return score;
 }
 
 function aiBuy(){
   let guard = 0;
-  while (guard++ < 20){
+  const difficulty = S.difficulty || "normal";
+  while (guard++ < MAX_UNITS_PER_SIDE && S.queue[1].length < MAX_UNITS_PER_SIDE){
     const budget = S.gold[1];
     const affordable = UNITS.filter(u => u.c <= budget);
     if (!affordable.length) break;
-    // 简单的反制：看对方买了什么甲
-    const enemyArmor = S.aiMemory;
-    let best = null, bestScore = -1;
+    let best = null;
+    let bestScore = -1;
     for (const u of affordable){
-      let base = u.hp * 0.55 + u.dmg * 5 + (u.r > 100 ? 12 : 0) + (u.splash ? 18 : 0) + (u.heal ? 15 : 0);
-      let s = base / u.c;
-      if (enemyArmor["重甲"] >= 2 && u.t === "破甲") s *= 1.35;
-      if (enemyArmor["飞行"] >= 1 && u.t === "穿刺") s *= 1.3;
-      if (enemyArmor["灵体"] >= 1 && u.t === "法术") s *= 1.3;
-      s *= 0.82 + rnd(0.36);
-      if (s > bestScore){ bestScore = s; best = u; }
+      const score = difficulty === "easy"
+        ? (1 / u.c) * (0.5 + rnd(1.5))
+        : aiScore(u, difficulty);
+      if (score > bestScore){ bestScore = score; best = u; }
     }
     if (!best) break;
-    S.gold[1] -= best.c;
-    S.queue[1].push({ id: best.id, lane: Math.floor(rnd(LANES)) });
+    if (difficulty === "easy" && rnd() < 0.18) break;
+    if (difficulty === "hard" && budget < 6 && bestScore < 12 && rnd() < 0.35) break;
+    purchaseUnit(1, best.id, chooseAiLane(), { feedback: false });
   }
 }
 
 function startBattle(){
   S.phase = "battle";
   S.t = 0;
+  S.acc = 0;
+  S.crystalCd = [0, 0];
   S.units = [];
-  // 记录玩家上一轮的护甲构成，供 AI 下一轮参考
   S.aiMemory = { "轻甲":0, "重甲":0, "灵体":0, "飞行":0 };
+  S.aiLaneMemory = [0, 0, 0];
   for (const q of S.queue[0]){
     const d = UNIT_MAP[q.id];
     if (S.aiMemory[d.a] !== undefined) S.aiMemory[d.a] += 1;
+    S.aiLaneMemory[q.lane] += 1;
   }
   for (let side = 0; side < 2; side++){
     const lanes = [[], [], []];
@@ -399,6 +572,7 @@ function startBattle(){
     });
   }
   S.queue = [[],[]];
+  logEvent("battle_start", { units: S.units.length, speed: S.speed });
   refreshShop();
   beep(300, .18, "sine", .05, 160);
 }
@@ -419,8 +593,13 @@ function spawnUnit(side, id, lane, slot = 0, total = 1){
 }
 
 /* ══════════════ 6. 战斗模拟 ══════════════ */
+function matrixMultiplier(attackType, armorType){
+  const row = MATRIX[attackType];
+  return row && Object.prototype.hasOwnProperty.call(row, armorType) ? row[armorType] : 1;
+}
+
 function damageMult(u, target){
-  return (MATRIX[u.t] && MATRIX[u.t][target.u.a]) || 1;
+  return matrixMultiplier(u.t, target.u.a);
 }
 
 function attackDamage(u){
@@ -430,6 +609,8 @@ function attackDamage(u){
 }
 
 function tick(dt){
+  if (S.phase !== "battle" || S.crystal[0] <= 0 || S.crystal[1] <= 0) return;
+  S.t += dt;
   const alive = S.units.filter(u => u.alive);
 
   // 水晶反击：靠近的敌人会被点射
@@ -455,15 +636,15 @@ function tick(dt){
 
   // 治疗光环 / 回血
   for (const u of alive){
-    if (u.u.heal){
+    if (u.u.heal && u.alive){
       for (const o of alive){
         if (o.side === u.side && o.alive && o !== u && Math.abs(o.x - u.x) < u.u.healR){
           o.hp = Math.min(o.maxHp, o.hp + u.u.heal * dt);
         }
       }
     }
-    if (u.u.regen) u.hp = Math.min(u.maxHp, u.hp + u.u.regen * dt);
-    if (u.slowT > 0) u.slowT -= dt;
+    if (u.alive && u.u.regen) u.hp = Math.min(u.maxHp, u.hp + u.u.regen * dt);
+    if (u.alive && u.slowT > 0) u.slowT -= dt;
   }
 
   // 行动
@@ -486,7 +667,6 @@ function tick(dt){
       const cx = CRYSTAL_X[1 - u.side];
       const atCrystal = u.side === 0 ? u.x >= cx - 46 : u.x <= cx + 46;
       if (atCrystal){
-        // 抵城：停下砸水晶
         const stopX = cx - dir * 46;
         u.x = stopX;
         u.cd -= dt;
@@ -494,6 +674,7 @@ function tick(dt){
           u.cd = u.u.cd;
           const dmg = attackDamage(u) * (u.u.crystal || 1) * 0.15;
           S.crystal[1 - u.side] -= dmg;
+          triggerCrystalHit(1 - u.side);
           beep(120, .07, "sawtooth", .035, -40);
         }
       } else {
@@ -519,52 +700,87 @@ function hit(u, target, dmg){
   if (u.u.slow) target.slowT = u.u.slow;
 }
 
+function getOutcome(forceFinal = false){
+  const c0 = S.crystal[0];
+  const c1 = S.crystal[1];
+  if (c0 <= 0 && c1 <= 0) return "draw";
+  if (c0 <= 0) return "p2_win";
+  if (c1 <= 0) return "p1_win";
+  if (!forceFinal) return null;
+  if (c0 < c1) return "p2_win";
+  if (c1 < c0) return "p1_win";
+  const p1Damage = Math.max(0, CRYSTAL_HP - c1);
+  const p2Damage = Math.max(0, CRYSTAL_HP - c0);
+  if (p1Damage > p2Damage) return "p1_win";
+  if (p2Damage > p1Damage) return "p2_win";
+  return "draw";
+}
+
 function battleOver(){
   const a0 = S.units.some(u => u.alive && u.side === 0);
   const a1 = S.units.some(u => u.alive && u.side === 1);
+  if (S.crystal[0] <= 0 || S.crystal[1] <= 0) return true;
   if (!a0 || !a1) return true;
-  return S.t > 24;
+  return S.t >= 24;
 }
 
 function endBattle(){
+  if (S.phase !== "battle") return;
   const before = [S.crystal[0], S.crystal[1]];
   const survivors = S.units.filter(u => u.alive);
   const s0 = survivors.filter(u => u.side === 0).length;
   const s1 = survivors.filter(u => u.side === 1).length;
-  if (s0 && !s1) S.crystal[1] -= 6 + s0 * 2;
-  if (s1 && !s0) S.crystal[0] -= 6 + s1 * 2;
+  if (s0 && !s1) { S.crystal[1] -= 6 + s0 * 2; triggerCrystalHit(1); }
+  if (s1 && !s0) { S.crystal[0] -= 6 + s1 * 2; triggerCrystalHit(0); }
 
   const d0 = Math.max(0, Math.round(before[0] - S.crystal[0]));
   const d1 = Math.max(0, Math.round(before[1] - S.crystal[1]));
   S.units = [];
-  S.phase = "roundend";
+  S.phase = "settle";
   refreshShop();
   flash(`本回合　P1 水晶 -${d0}　P2 水晶 -${d1}`);
+  logEvent("battle_end", { duration: S.t, survivors: [s0, s1], crystal_damage: [d0, d1], crystal: [...S.crystal] });
 
-  if (S.crystal[0] <= 0 || S.crystal[1] <= 0) return gameOver();
+  const outcome = getOutcome();
+  const token = ++S.settleToken;
+  if (outcome){
+    setTimeout(() => {
+      if (token === S.settleToken) finishMatch(outcome);
+    }, 350);
+    return;
+  }
+  if (S.round >= MAX_ROUNDS){
+    setTimeout(() => {
+      if (token === S.settleToken) finishMatch(getOutcome(true));
+    }, 1150);
+    return;
+  }
   setTimeout(() => {
-    if (S.phase !== "roundend") return;
+    if (token !== S.settleToken || S.phase !== "settle") return;
     S.round++;
     beginRound();
   }, 1150);
 }
 
-function gameOver(){
-  S.phase = "over";
-  const p2Won = S.crystal[0] <= 0;
+function finishMatch(result){
+  if (S.phase === "over" || S.phase === "draw") return;
+  S.result = result;
+  S.phase = result === "draw" ? "draw" : "over";
   const title = S.mode === "ai"
-    ? (p2Won ? "你输了" : "你赢了")
-    : (p2Won ? "玩家 2 获胜" : "玩家 1 获胜");
+    ? (result === "p1_win" ? "你赢了" : result === "p2_win" ? "你输了" : "平局")
+    : (result === "p1_win" ? "玩家 1 获胜" : result === "p2_win" ? "玩家 2 获胜" : "平局");
+  logEvent("match_end", { result, rounds: S.round, crystal: [...S.crystal], seed: S.seed });
+  refreshShop();
   showOverlay(`
     <h1 style="font-size:32px">${title}</h1>
     <p>第 ${S.round} 回合结束 · 水晶 ${Math.max(0,Math.round(S.crystal[0]))} : ${Math.max(0,Math.round(S.crystal[1]))}</p>
     <div class="row">
-      <button class="bigbtn" id="again">再来一局</button>
-      <button class="bigbtn alt" id="toMenu">换模式</button>
-    </div>`);
-  $("again").onclick = () => startMatch(S.mode);
+      <button class="bigbtn" id="again" type="button">再来一局</button>
+      <button class="bigbtn alt" id="toMenu" type="button">换模式</button>
+    </div>`, result);
+  $("again").onclick = () => startMatch(S.mode, { difficulty: S.difficulty });
   $("toMenu").onclick = () => menu();
-  beep(p2Won ? 160 : 720, .5, "sine", .06, p2Won ? -80 : 200);
+  beep(result === "p2_win" ? 160 : result === "draw" ? 360 : 720, .5, "sine", .06, result === "p2_win" ? -80 : 200);
 }
 
 /* ══════════════ 7. 渲染 ══════════════ */
@@ -713,31 +929,37 @@ function drawCrystal(side, x, color){  const h = clamp(S.crystal[side]/CRYSTAL_H
 
 /* ══════════════ 8. 主循环 ══════════════ */
 let lastT = 0;
-function loop(now){
-  const dt = Math.min(0.05, (now - lastT) / 1000 || 0);
-  lastT = now;
-
-  if (S.phase === "battle"){
-    const step = dt * S.speed;
-    S.t += step;
-    // 固定小步长，保证不同帧率下结果一致
-    let remain = step;
-    while (remain > 0){
-      const s = Math.min(1/60, remain);
-      tick(s);
-      remain -= s;
-    }
-    if (battleOver()){
-      endBattle();
-    }
+function advanceSimulation(realDt, speed, stepCap = 12){
+  if (S.phase !== "battle") return 0;
+  S.acc += Math.max(0, realDt) * speed;
+  let steps = 0;
+  while (S.acc >= FIXED_DT && steps < stepCap && S.phase === "battle"){
+    tick(FIXED_DT);
+    S.acc -= FIXED_DT;
+    steps++;
+    if (battleOver()) break;
   }
+  S.lastFrameSteps = steps;
+  if (steps === stepCap && S.acc >= FIXED_DT){
+    S.acc = 0;
+    S.lowFrameGuard++;
+    logEvent("frame_guard", { steps });
+  }
+  if (S.phase === "battle" && battleOver()) endBattle();
+  return steps;
+}
 
+function loop(now){
+  const dt = Math.min(0.25, (now - lastT) / 1000 || 0);
+  lastT = now;
+  if (S.phase === "battle") advanceSimulation(dt, S.speed, 12);
   draw();
   requestAnimationFrame(loop);
 }
 
 /* ══════════════ 9. 杂项按钮 ══════════════ */
 let flashTimer = null;
+let lastHitFx = 0;
 function flash(text){
   const el = $("banner");
   if (!el) return;
@@ -747,41 +969,109 @@ function flash(text){
   flashTimer = setTimeout(() => el.classList.remove("show"), 1800);
 }
 
+function triggerCrystalHit(side){
+  const now = performance.now();
+  if (now - lastHitFx < 80) return;
+  lastHitFx = now;
+  const stage = $("stage");
+  const damageFlash = $("damageFlash");
+  stage.classList.remove("shake");
+  void stage.offsetWidth;
+  stage.classList.add("shake");
+  damageFlash.className = `damageFlash show ${side === 0 ? "p1" : "p2"}`;
+  clearTimeout(triggerCrystalHit.timer);
+  triggerCrystalHit.timer = setTimeout(() => {
+    stage.classList.remove("shake");
+    damageFlash.className = "damageFlash";
+  }, 180);
+}
+
 function help(){
   const rows = Object.entries(MATRIX).map(([atk, m]) => {
     const cells = Object.entries(m).map(([ar, v]) => `${ar} ${v.toFixed(2)}`).join("　");
     return `<div style="font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#8b98ab;text-align:left">${atk}　${cells}</div>`;
   }).join("");
   showOverlay(`
-    <h1 style="font-size:24px">克制表</h1>
+    <h1 style="font-size:24px">规则与克制表</h1>
     <p>攻击类型 → 护甲类型的伤害倍率</p>
     <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>
-    <p style="font-size:12px">攻城 对水晶额外 ×2.2；灵体吃物理只有 45%，但吃法术 160%。</p>
-    <button class="bigbtn" id="closeHelp">知道了</button>`);
+    <p style="font-size:12px">飞行仅作为护甲类型，不提供穿越或免疫拦截。攻城对水晶额外 ×2.2。购买期双方队列互相隐藏，战斗期完全公开。</p>
+    <button class="bigbtn" id="closeHelp" type="button">知道了</button>`, "help");
   $("closeHelp").onclick = () => {
     hideOverlay();
     if (S.phase === "menu") menu();
   };
 }
 
+function showDebug(){
+  const events = S.events.slice(-40).reverse().map(e => `${e.at}ms [${e.type}] ${JSON.stringify(e.data)}`).join("\n");
+  showOverlay(`
+    <h1 style="font-size:24px">调试面板</h1>
+    <p style="text-align:left;font-family:ui-monospace,Menlo,monospace;font-size:10px;white-space:pre-wrap;max-height:55vh;overflow:auto">阶段 ${S.phase}
+回合 ${S.round}
+种子 ${S.seed}
+RNG ${S.rngState}
+accumulator ${S.acc.toFixed(5)}
+低帧保护 ${S.lowFrameGuard}
+
+${events || "暂无事件"}</p>
+    <button class="bigbtn" id="closeDebug" type="button">关闭</button>`, "debug");
+  $("closeDebug").onclick = hideOverlay;
+}
+
 /* ══════════════ 10. 事件绑定 ══════════════ */
 buildCards();
 document.querySelectorAll(".lanebtn").forEach(b => {
-  b.addEventListener("click", () => { S.lane = +b.dataset.lane; refreshShop(); });
+  b.addEventListener("click", () => {
+    if (S.phase !== "buy") return;
+    S.lane = +b.dataset.lane;
+    refreshShop();
+  });
 });
 $("endBtn").addEventListener("click", endTurn);
+$("undoBtn").addEventListener("click", undoBuy);
+$("soundBtn").addEventListener("click", () => {
+  S.muted = !S.muted;
+  refreshShop();
+});
 $("speedBtn").addEventListener("click", () => {
   S.speed = S.speed === 1 ? 2 : S.speed === 2 ? 4 : 1;
   $("speedBtn").textContent = S.speed + "×";
+  logEvent("speed_change", { to: S.speed });
 });
 $("helpBtn").addEventListener("click", help);
+if (DEBUG){
+  $("debugBtn").hidden = false;
+  $("debugBtn").addEventListener("click", showDebug);
+}
+
+function trapFocus(event){
+  if (!overlay.classList.contains("show") || event.key !== "Tab") return;
+  const nodes = [...panel.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")]
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (!nodes.length) return;
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  if (event.shiftKey && document.activeElement === first){
+    event.preventDefault(); last.focus();
+  } else if (!event.shiftKey && document.activeElement === last){
+    event.preventDefault(); first.focus();
+  }
+}
 
 window.addEventListener("keydown", (e) => {
+  trapFocus(e);
   if (e.repeat) return;
+  if (e.code === "Escape" && S.modalKind === "help"){
+    hideOverlay();
+    if (S.phase === "menu") menu();
+    return;
+  }
   if (e.code === "Enter"){
     if (S.phase === "buy") endTurn();
     else if (S.phase === "handoff") $("handoff")?.click();
   }
+  if (e.code === "KeyU" && S.phase === "buy") undoBuy();
   if (["Digit1","Digit2","Digit3"].includes(e.code) && S.phase === "buy"){
     S.lane = +e.code.slice(-1) - 1;
     refreshShop();
@@ -792,13 +1082,41 @@ refreshShop();
 menu();
 requestAnimationFrame(loop);
 
-window.__S = S;
-window.__buy = buy;
-window.__endTurn = endTurn;
-window.__UNITS = UNITS;
-window.__spawn = spawnUnit;
-window.__tick = tick;
-window.__map = UNIT_MAP;
+if (DEBUG){
+  const debugApi = Object.freeze({
+    getState: () => JSON.parse(JSON.stringify(S)),
+    reset: (options = {}) => {
+      startMatch(options.mode || "pvp", { seed: options.seed ?? 1, difficulty: options.difficulty || "normal" });
+      return JSON.parse(JSON.stringify(S));
+    },
+    buy: (id, lane = null) => buy(id, lane),
+    undoBuy,
+    endTurn,
+    startBattle,
+    advance: (seconds, speed = 1) => advanceSimulation(seconds, speed, 100000),
+    stepTicks: (n) => {
+      for (let i = 0; i < n && S.phase === "battle"; i++){
+        tick(FIXED_DT);
+        if (battleOver()) break;
+      }
+      if (S.phase === "battle" && battleOver()) endBattle();
+      return JSON.parse(JSON.stringify(S));
+    },
+    patchState: (patch) => { Object.assign(S, patch); refreshShop(); return JSON.parse(JSON.stringify(S)); },
+    getOutcome,
+    finish: (forceFinal = true) => {
+      const result = getOutcome(forceFinal) || "draw";
+      finishMatch(result);
+      return result;
+    },
+    matrixMultiplier,
+    constants: Object.freeze({ FIXED_DT, MAX_UNITS_PER_SIDE, MAX_ROUNDS, CRYSTAL_HP }),
+    getEvents: () => JSON.parse(JSON.stringify(S.events)),
+  });
+  Object.defineProperty(window, "__CRYSTAL_DEBUG__", {
+    value: debugApi, writable: false, configurable: false,
+  });
+}
 })();
 </script>
 </body>
